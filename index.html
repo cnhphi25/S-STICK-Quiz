@@ -9190,7 +9190,7 @@ function exportFolderScoresToWord(idx) {
     document.getElementById('nt-btn-ok').classList.add('hidden');
 }
 
-// 2. HÀM XUẤT PDF (ĐÃ FIX LỖI MOBILE KHÔNG TẢI ĐƯỢC)
+// 2. HÀM XUẤT PDF (FIX LỖI KHÔNG CHẠY)
 async function generatePDFScore(idx) {
     closeNotify();
     const folder = foldersDB[idx];
@@ -9204,7 +9204,7 @@ async function generatePDFScore(idx) {
 
     const testDate = matches[0].time.split(' ').pop();
     
-    // ... (Giữ nguyên phần biến pdfStr của bạn ở đây) ...
+    // HTML siêu tinh gọn - cô lập lề
     let pdfStr = `
     <div id="capture-zone" style="width: 700px; color: black; background: white; font-family: Times New Roman, serif; padding: 20px;">
         <style>
@@ -9221,13 +9221,12 @@ async function generatePDFScore(idx) {
         <div class="p-h1">BẢNG ĐIỂM TỔNG HỢP CHI TIẾT</div>
         <div class="p-h2">BỘ ĐỀ: ${folder.name.toUpperCase()}</div>
         <div class="info">
-            Trường: <b>${folder.school || '..................'}</b> - Lớp: <b>${folder.className || '.........'}</b><br>
-            Môn học: <b>${folder.subject}</b> | Quy định: <b>${folder.duration || '--'} phút</b><br>
+        Trường: <b>${folder.school || '..................'}</b> - Lớp: <b>${folder.className || '.........'}</b><br>
+        Môn học: <b>${folder.subject}</b> | Quy định: <b>${folder.duration || '--'} phút</b><br>
             Ngày kiểm tra: <b>${testDate}</b> | Số thí sinh tham gia: <b>${matches.length} thí sinh</b>
         </div>
     `;
 
-    // (Phần logic nhóm mã đề giữ nguyên như cũ của bạn)
     const grouped = matches.reduce((acc, h) => {
         const c = h.examCode || "GỐC";
         if (!acc[c]) acc[c] = [];
@@ -9264,32 +9263,15 @@ async function generatePDFScore(idx) {
 
     pdfStr += `<div style="text-align: right; font-style: italic; margin-top: 30px;">Hệ thống S-STICK QUIZ báo cáo</div></div>`;
 
-    // Cấu hình PDF
     const opt = {
-        margin: [10, 10, 10, 10],
-        filename: `KET_QUA_${folder.name.replace(/\s+/g, '_')}.pdf`,
+        margin: [10, 10, 10, 10], // Lề đồng nhất
+        filename: 'KET_QUA_CUOI.pdf',
         image: { type: 'jpeg', quality: 1.0 },
         html2canvas: { scale: 3, width: 700, useCORS: true, scrollY: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // --- LOGIC XUẤT FILE THÔNG MINH CHO MOBILE ---
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    if (isMobile) {
-        showModernToast("Hệ thống", "Đang chuẩn bị bản xem trước PDF cho di động...", "info");
-        html2pdf().set(opt).from(pdfStr).toPdf().outputPdf('blob').then((blob) => {
-            const url = URL.createObjectURL(blob);
-            // Mở tab mới chứa PDF
-            const newWindow = window.open(url, '_blank');
-            if (!newWindow) {
-                sysNotify("Lỗi chặn Pop-up", "Vui lòng cho phép trình duyệt mở cửa sổ mới để xem PDF.", "error");
-            }
-        });
-    } else {
-        // Trên PC thì giữ nguyên lệnh tải về trực tiếp
-        html2pdf().set(opt).from(pdfStr).save();
-    }
+    html2pdf().set(opt).from(pdfStr).save();
 }
 
 // 3. HÀM XUẤT EXCEL (CẬP NHẬT: GIỐNG PDF, THAY THỜI GIAN THÀNH XẾP LOẠI)
