@@ -9190,7 +9190,7 @@ function exportFolderScoresToWord(idx) {
     document.getElementById('nt-btn-ok').classList.add('hidden');
 }
 
-// 2. HÀM XUẤT PDF (ĐÃ FIX LỖI MOBILE KHÔNG TẢI ĐƯỢC)
+// 2. HÀM XUẤT PDF (BẢN FIX TRIỆT ĐỂ CHO MOBILE - CÓ MENU CHIA SẺ HỆ THỐNG)
 async function generatePDFScore(idx) {
     closeNotify();
     const folder = foldersDB[idx];
@@ -9201,10 +9201,9 @@ async function generatePDFScore(idx) {
     });
 
     if (matches.length === 0) return;
-
     const testDate = matches[0].time.split(' ').pop();
     
-    // ... (Giữ nguyên phần biến pdfStr của bạn ở đây) ...
+    // Tạo nội dung HTML (Giữ nguyên giao diện của bạn)
     let pdfStr = `
     <div id="capture-zone" style="width: 700px; color: black; background: white; font-family: Times New Roman, serif; padding: 20px;">
         <style>
@@ -9227,7 +9226,6 @@ async function generatePDFScore(idx) {
         </div>
     `;
 
-    // (Phần logic nhóm mã đề giữ nguyên như cũ của bạn)
     const grouped = matches.reduce((acc, h) => {
         const c = h.examCode || "GỐC";
         if (!acc[c]) acc[c] = [];
@@ -9264,30 +9262,46 @@ async function generatePDFScore(idx) {
 
     pdfStr += `<div style="text-align: right; font-style: italic; margin-top: 30px;">Hệ thống S-STICK QUIZ báo cáo</div></div>`;
 
-    // Cấu hình PDF
+    const fileName = `KET_QUA_${folder.name.replace(/\s+/g, '_')}.pdf`;
     const opt = {
         margin: [10, 10, 10, 10],
-        filename: `KET_QUA_${folder.name.replace(/\s+/g, '_')}.pdf`,
+        filename: fileName,
         image: { type: 'jpeg', quality: 1.0 },
-        html2canvas: { scale: 3, width: 700, useCORS: true, scrollY: 0 },
+        html2canvas: { scale: 3, width: 700, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // --- LOGIC XUẤT FILE THÔNG MINH CHO MOBILE ---
+    showModernToast("Hệ thống", "Đang khởi tạo tệp PDF...", "info");
+
+    // --- LOGIC XUẤT FILE ĐA NỀN TẢNG ---
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     if (isMobile) {
-        showModernToast("Hệ thống", "Đang chuẩn bị bản xem trước PDF cho di động...", "info");
-        html2pdf().set(opt).from(pdfStr).toPdf().outputPdf('blob').then((blob) => {
-            const url = URL.createObjectURL(blob);
-            // Mở tab mới chứa PDF
-            const newWindow = window.open(url, '_blank');
-            if (!newWindow) {
-                sysNotify("Lỗi chặn Pop-up", "Vui lòng cho phép trình duyệt mở cửa sổ mới để xem PDF.", "error");
+        // Trên di động: Tạo Blob -> Chuyển thành File -> Gọi Menu Chia sẻ
+        html2pdf().set(opt).from(pdfStr).outputPdf('blob').then(async (blob) => {
+            const file = new File([blob], fileName, { type: 'application/pdf' });
+            
+            // Kiểm tra xem trình duyệt có hỗ trợ Chia sẻ file không
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Xuất kết quả bài thi',
+                        text: 'Bảng điểm từ S-STICK Quiz'
+                    });
+                } catch (err) {
+                    // Nếu người dùng hủy chia sẻ, mở trong tab mới làm phương án dự phòng
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                }
+            } else {
+                // Nếu không hỗ trợ Share API, mở tab mới
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
             }
         });
     } else {
-        // Trên PC thì giữ nguyên lệnh tải về trực tiếp
+        // Trên PC: Tải về trực tiếp như bình thường
         html2pdf().set(opt).from(pdfStr).save();
     }
 }
