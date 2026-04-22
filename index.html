@@ -9598,7 +9598,7 @@ async function generatePDFScore(idx) {
 
     const testDate = matches[0].time.split(' ').pop();
     
-    // 1. TẠO HTML
+    // 1. TẠO HTML VỚI CSS NGẮT TRANG
     let pdfStr = `
     <div id="capture-zone" style="width: 700px; color: black; background: white; font-family: Times New Roman, serif; padding: 20px;">
         <style>
@@ -9606,7 +9606,14 @@ async function generatePDFScore(idx) {
             .p-h1 { text-align: center; font-weight: bold; font-size: 20px; margin-bottom: 5px; width: 100%; }
             .p-h2 { text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px; width: 100%; }
             .info { font-size: 13px; line-height: 1.6; margin-bottom: 20px; text-align: left; }
-            table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 20px; border: 1px solid black; }
+            
+            /* CSS QUAN TRỌNG ĐỂ KHÔNG BỊ CẮT BẢNG */
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 20px; border: 1px solid black; page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; } /* Lặp lại tiêu đề nếu bảng dài qua trang mới */
+            
+            .group-container { page-break-inside: avoid; margin-bottom: 20px; } /* Giữ tiêu đề mã đề và bảng đi cùng nhau */
+            
             th, td { border: 1px solid black; padding: 8px 4px; text-align: center; font-size: 12px; word-wrap: break-word; }
             th { background: #f0f0f0 !important; font-weight: bold; }
             .t-left { text-align: left !important; padding-left: 10px; }
@@ -9621,49 +9628,47 @@ async function generatePDFScore(idx) {
         </div>
     `;
 
-    // 2. LOGIC TÁCH MÃ ĐỀ (QUAN TRỌNG)
     const grouped = matches.reduce((acc, h) => {
         let code = "GỐC";
         const name = (h.examName || "");
-
         if (name.toLowerCase().includes("(mã ")) {
-            // Tách lấy phần sau chữ "(mã " và bỏ dấu ngoặc đóng ")"
             code = name.toLowerCase().split("(mã ")[1].split(")")[0].trim();
         } else if (h.examCode && String(h.examCode).length < 5) {
             code = h.examCode;
         }
-
         if (!acc[code]) acc[code] = [];
         acc[code].push(h);
         return acc;
     }, {});
 
-    // 3. VẼ TABLE THEO MÃ ĐỀ
     Object.keys(grouped).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(code => {
         const students = sortArrayByVietnameseName(grouped[code], 'fullname');
+        // Bọc trong class group-container để tránh việc tiêu đề nằm trang cũ, bảng nằm trang mới
         pdfStr += `
-        <div class="code-bar">MÃ ${code.toUpperCase()}</div>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 8%">STT</th>
-                    <th style="width: 42%">Tên thí sinh</th>
-                    <th style="width: 15%">Điểm</th>
-                    <th style="width: 15%">Câu</th>
-                    <th style="width: 20%">Xếp loại</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${students.map((s, i) => `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td class="t-left">${s.fullname}</td>
-                    <td><b>${s.point}</b></td>
-                    <td>${s.score}/${s.total}</td>
-                    <td>${parseFloat(s.point) >= 5 ? 'ĐẠT' : 'CHƯA ĐẠT'}</td>
-                </tr>`).join('')}
-            </tbody>
-        </table>`;
+        <div class="group-container">
+            <div class="code-bar">MÃ ĐỀ: ${code.toUpperCase()}</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 8%">STT</th>
+                        <th style="width: 42%">Tên thí sinh</th>
+                        <th style="width: 15%">Điểm</th>
+                        <th style="width: 15%">Câu</th>
+                        <th style="width: 20%">Xếp loại</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${students.map((s, i) => `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td class="t-left">${s.fullname}</td>
+                        <td><b>${s.point}</b></td>
+                        <td>${s.score}/${s.total}</td>
+                        <td>${parseFloat(s.point) >= 5 ? 'ĐẠT' : 'CHƯA ĐẠT'}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
     });
 
     pdfStr += `<div style="text-align: right; font-style: italic; margin-top: 30px;">Hệ thống S-STICK QUIZ báo cáo</div></div>`;
@@ -9673,7 +9678,9 @@ async function generatePDFScore(idx) {
         filename: 'KET_QUA_CUOI.pdf',
         image: { type: 'jpeg', quality: 1.0 },
         html2canvas: { scale: 3, width: 700, useCORS: true, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        // CẤU HÌNH NGẮT TRANG THÔNG MINH
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
     html2pdf().set(opt).from(pdfStr).save();
