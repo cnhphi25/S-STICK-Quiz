@@ -9588,6 +9588,16 @@ function exportFolderScoresToWord(idx) {
 async function generatePDFScore(idx) {
     closeNotify();
     const folder = foldersDB[idx];
+    
+    // LOGIC MỚI: TẠO TÊN FILE ĐẦY ĐỦ THÔNG TIN
+    // Cấu trúc: Bảng điểm tổng hợp chi tiết [Tên bộ đề] - Lớp [Tên lớp] - [Tên trường]
+    let rawFileName = `Bảng điểm tổng hợp chi tiết ${folder.name}`;
+    if (folder.className) rawFileName += ` - Lớp ${folder.className}`;
+    if (folder.school) rawFileName += ` - ${folder.school}`;
+    
+    // Xóa ký tự đặc biệt để tránh lỗi lưu file trên máy tính
+    const fileName = rawFileName.trim().replace(/[/\\?%*:|"<>]/g, '-') + '.pdf';
+
     const matches = (quizHistory || []).filter(h => {
         const hName = (h.examName || "").trim().toLowerCase();
         const fName = folder.name.toLowerCase();
@@ -9598,7 +9608,7 @@ async function generatePDFScore(idx) {
 
     const testDate = matches[0].time.split(' ').pop();
     
-    // 1. TẠO HTML VỚI CSS NGẮT TRANG
+    // 1. TẠO HTML VỚI LOGIC CSS CHỐNG CẮT BẢNG
     let pdfStr = `
     <div id="capture-zone" style="width: 700px; color: black; background: white; font-family: Times New Roman, serif; padding: 20px;">
         <style>
@@ -9607,12 +9617,11 @@ async function generatePDFScore(idx) {
             .p-h2 { text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px; width: 100%; }
             .info { font-size: 13px; line-height: 1.6; margin-bottom: 20px; text-align: left; }
             
-            /* CSS QUAN TRỌNG ĐỂ KHÔNG BỊ CẮT BẢNG */
             table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 20px; border: 1px solid black; page-break-inside: auto; }
             tr { page-break-inside: avoid; page-break-after: auto; }
-            thead { display: table-header-group; } /* Lặp lại tiêu đề nếu bảng dài qua trang mới */
+            thead { display: table-header-group; } 
             
-            .group-container { page-break-inside: avoid; margin-bottom: 20px; } /* Giữ tiêu đề mã đề và bảng đi cùng nhau */
+            .group-container { page-break-inside: avoid; margin-bottom: 20px; } 
             
             th, td { border: 1px solid black; padding: 8px 4px; text-align: center; font-size: 12px; word-wrap: break-word; }
             th { background: #f0f0f0 !important; font-weight: bold; }
@@ -9628,6 +9637,7 @@ async function generatePDFScore(idx) {
         </div>
     `;
 
+    // 2. GIỮ NGUYÊN LOGIC GỘP MÃ ĐỀ CŨ
     const grouped = matches.reduce((acc, h) => {
         let code = "GỐC";
         const name = (h.examName || "");
@@ -9641,9 +9651,9 @@ async function generatePDFScore(idx) {
         return acc;
     }, {});
 
+    // 3. VẼ TABLE THEO TỪNG MÃ ĐỀ (Kèm bọc group-container)
     Object.keys(grouped).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(code => {
         const students = sortArrayByVietnameseName(grouped[code], 'fullname');
-        // Bọc trong class group-container để tránh việc tiêu đề nằm trang cũ, bảng nằm trang mới
         pdfStr += `
         <div class="group-container">
             <div class="code-bar">MÃ ĐỀ: ${code.toUpperCase()}</div>
@@ -9673,13 +9683,13 @@ async function generatePDFScore(idx) {
 
     pdfStr += `<div style="text-align: right; font-style: italic; margin-top: 30px;">Hệ thống S-STICK QUIZ báo cáo</div></div>`;
 
+    // 4. CẤU HÌNH XUẤT PDF
     const opt = {
         margin: [10, 10, 10, 10], 
-        filename: 'KET_QUA_CUOI.pdf',
+        filename: fileName, 
         image: { type: 'jpeg', quality: 1.0 },
         html2canvas: { scale: 3, width: 700, useCORS: true, scrollY: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        // CẤU HÌNH NGẮT TRANG THÔNG MINH
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
 
